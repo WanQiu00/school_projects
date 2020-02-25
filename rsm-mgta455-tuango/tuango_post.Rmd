@@ -1,0 +1,196 @@
+---
+title: Tuango - RFM Analysis for Mobile App Push Messaging on the post roll-out data
+output: html_document
+---
+
+* Name:
+* GitLab id:
+
+```{r r_setup, include = FALSE}
+## initial settings
+knitr::opts_chunk$set(
+  comment = NA,
+  echo = TRUE,
+  error = TRUE,
+  cache = FALSE,
+  message = FALSE,
+  dpi = 96,
+  warning = FALSE
+)
+
+## width to use when printing tables etc.
+options(
+  width = 250,
+  scipen = 100,
+  max.print = 5000,
+  stringsAsFactors = FALSE
+)
+
+## make all required libraries available by loading radiant package if needed
+if (!exists("r_environment")) library(radiant)
+```
+
+<style>
+.btn, .form-control, pre, code, pre code {
+  border-radius: 4px;
+}
+.table {
+  width: auto;
+}
+ul, ol {
+  padding-left: 18px;
+}
+code, pre, pre code {
+  overflow: auto;
+  white-space: pre;
+  word-wrap: normal;
+}
+code {
+  color: #c7254e;
+  background-color: #f9f2f4;
+}
+pre {
+  background-color: #ffffff;
+}
+</style>
+
+## Setup
+
+Please complete this Rmarkdown document by answering question 14 in `tuango.pdf` on Canvas (week4/). The code block below loads the data you need for this second Rmarkdown file. Create an HTML file with all your results and answers and push both the Rmarkdown and HTML file to GitLab when you are done. All results MUST be reproducible (i.e., the TA and I must be able to recreate the Notebook/HTML from the Rmarkdown file without changes or errors).
+
+```{r}
+## loading the data - this dataset must NOT be changed
+tuango_post <- readr::read_rds("data/tuango_post.rds")
+```
+
+## Question answers
+
+### Question 14
+```{r}
+library(radiant)
+
+register("tuango_post")
+## create new variable(s)
+tuango_post <- mutate(tuango_post, rec_iq = xtile(recency, 5))
+## create new variable(s)
+tuango_post <- mutate(tuango_post, freq_iq = xtile(frequency, 5, rev = TRUE))
+## create new variable(s)
+tuango_post <- mutate(tuango_post, mon_iq = xtile(monetary, 5, rev = TRUE))
+## create new variable(s)
+tuango_post <- mutate(tuango_post, rfm_iq = paste0(rec_iq, freq_iq, mon_iq))
+## create new variable(s)
+tuango_post <- group_by(tuango_post, rec_iq) %>%
+  mutate(freq_sq = xtile(frequency, 5, rev = TRUE)) %>%
+  ungroup()
+## create new variable(s)
+tuango_post <- group_by(tuango_post, rec_iq, freq_sq) %>%
+  mutate(mon_sq = xtile(monetary, 5, rev = TRUE)) %>%
+  ungroup()
+tuango_post <- mutate(tuango_post, rfm_sq = paste0(rec_iq, freq_sq, mon_sq))
+
+rev <- mean(data.matrix(tuango_post[tuango_post$buyer == 'yes' & tuango_post$training == 1, "ordersize"]))
+breakeven <- 2.5/(rev*0.5)
+
+temp <- tuango_post %>%
+  filter(training == 1) %>%
+  group_by(rfm_iq) %>%
+  summarise(mailto_iq = mean(buyer == "yes") > breakeven) %>%
+  ungroup()
+tuango_post <- tuango_post %>%
+  left_join(temp, by = c("rfm_iq" = "rfm_iq"))
+## create new variable(s)
+temp <- tuango_post %>%
+  filter(training == 1) %>%
+  group_by(rfm_sq) %>%
+  summarise(mailto_sq = mean(buyer == "yes") > breakeven) %>%
+  ungroup()
+tuango_post <- tuango_post %>%
+  left_join(temp, by = c("rfm_sq" = "rfm_sq"))
+
+perf_calc <- function(x){
+  tuango_post %>%
+    filter(training == 0, tuango_post[, x] == TRUE) %>%
+    summarise(
+      population = n(),
+      expenditure = population * 2.5,
+      rep_rate = mean(buyer == "yes"),
+      #nr_resp = nr_mail * rep_rate,
+      # profit = mean(ordersize) * nr_resp - mail_cost,
+      profit = 0.5 * sum(ordersize) - expenditure,
+      ROME = profit / expenditure,
+    )
+}
+
+profit_iq <- perf_calc('mailto_iq')[4]
+print(profit_iq)
+ROME_iq <- perf_calc('mailto_iq')[5]
+print(ROME_iq)
+profit_sq <- perf_calc('mailto_sq')[4]
+print(profit_sq)
+ROME_sq <- perf_calc('mailto_sq')[5]
+print(ROME_sq)
+
+Breakeven <- tuango_post %>%
+  filter(buyer == "yes" & training == 1) %>%
+  group_by(rfm_sq) %>%
+  summarise(breakeven_each = 2.5 / (mean(ordersize)*0.5)) %>%
+  ungroup()
+
+Breakeven <- tuango_post %>%
+  distinct(rfm_sq) %>%
+  left_join(Breakeven, by=c("rfm_sq"="rfm_sq"))
+
+tuango_post <- tuango_post %>%
+  left_join(Breakeven, by = "rfm_sq")
+
+tuango_post$breakeven_each <- tuango_post$breakeven_each %>% replace_na(1)
+
+temp <- tuango_post %>%
+  filter(training == 1) %>%
+  group_by(rfm_sq) %>%
+  summarise(mailto10_sq= mean(buyer == "yes") > mean(breakeven_each)) %>%
+  ungroup()
+tuango_post <- tuango_post %>%
+  left_join(temp, by = c("rfm_sq" = "rfm_sq"))
+
+profit_sq_cell <- perf_calc('mailto10_sq')[4]
+ROME_sq_cell <- perf_calc('mailto10_sq')[5]
+
+
+temp <- tuango_post %>%
+  filter(training == 1) %>%
+  group_by(rfm_iq) %>%
+  summarise(mailto_lbiq = (mean(buyer == "yes") - 1.64 * seprop(buyer == "yes")) > breakeven) %>%
+  ungroup()
+tuango_post <- tuango_post %>%
+  left_join(temp, by = c("rfm_iq" = "rfm_iq"))
+## create new variable(s)
+temp <- tuango_post %>%
+  filter(training == 1) %>%
+  group_by(rfm_sq) %>%
+  summarise(mailto_lbsq = (mean(buyer == "yes") - 1.64 * seprop(buyer == "yes")) > breakeven) %>%
+  ungroup()
+tuango_post <- tuango_post %>%
+  left_join(temp, by = c("rfm_sq" = "rfm_sq"))
+
+profit_lbiq <- perf_calc('mailto_lbiq')[4]
+ROME_lbiq <- perf_calc('mailto_lbiq')[5]
+profit_lbsq <- perf_calc('mailto_lbsq')[4]
+ROME_lbsq <- perf_calc('mailto_lbsq')[5]
+
+results <- tibble::tibble(
+  name = c("Indep. RFM", "Seq. RFM", "Seq. RFM with each BE", "Indep. lb RFM", "Seq. lb RFM"),
+  Profit = c(as.numeric(profit_iq), as.numeric(profit_sq), as.numeric(profit_sq_cell), as.numeric(profit_lbiq), as.numeric(profit_lbsq)),
+  ROME = c(as.numeric(ROME_iq), as.numeric(ROME_sq), as.numeric(ROME_sq), as.numeric(ROME_lbiq), as.numeric(ROME_lbsq))) %>%
+  mutate(name = factor(name, levels = name))
+
+results %>%
+  ggplot(aes(x = name, y = Profit)) + geom_bar(stat = "identity") + geom_text(aes(label = round(Profit, 2)), size = 3)
+
+results %>%
+  ggplot(aes(x = name, y = ROME)) + geom_bar(stat = "identity") + geom_text(aes(label = round(ROME, 2)), size = 3)
+
+
+```
+
+

@@ -1,0 +1,251 @@
+---
+title: Tuango - RFM Analysis for Mobile App Push Messaging
+output: html_document
+---
+
+* Name:
+* GitLab id:
+
+```{r r_setup, include = FALSE}
+## initial settings
+knitr::opts_chunk$set(
+  comment = NA,
+  echo = TRUE,
+  error = TRUE,
+  cache = FALSE,
+  message = FALSE,
+  dpi = 96,
+  warning = FALSE
+)
+
+## width to use when printing tables etc.
+options(
+  width = 250,
+  scipen = 100,
+  max.print = 5000,
+  stringsAsFactors = FALSE
+)
+
+## make all required libraries available by loading radiant package if needed
+if (!exists("r_environment")) library(radiant)
+```
+
+<style>
+.btn, .form-control, pre, code, pre code {
+  border-radius: 4px;
+}
+.table {
+  width: auto;
+}
+ul, ol {
+  padding-left: 18px;
+}
+code, pre, pre code {
+  overflow: auto;
+  white-space: pre;
+  word-wrap: normal;
+}
+code {
+  color: #c7254e;
+  background-color: #f9f2f4;
+}
+pre {
+  background-color: #ffffff;
+}
+</style>
+
+## Setup
+
+Please complete this Rmarkdown document by answering questions 1-13 in `tuango.pdf` on Canvas (week4/). The code block below loads the data you need for this first Rmarkdown file. Create an HTML file with all your results and answers and push both the Rmarkdown and HTML file to GitLab when you are done. All results MUST be reproducible (i.e., the TA and I must be able to recreate the results without changes or errors)
+
+Use "tuango_post.Rmd" to answer Question 14 in `tuango.pdf`
+
+
+```{r}
+## loading the data - this dataset must NOT be changed
+tuango <- readr::read_rds("data/tuango.rds")
+```
+
+## Question answers
+
+### Quesition1
+```{r}
+ifbuy <- tuango %>% count(buyer)
+percentage = ifbuy[1,2]/nrow(tuango)
+```
+
+### Question2
+```{r}
+amount <- tuango %>%
+  filter(buyer == 'yes') %>%
+  summarise(average = mean(ordersize))
+amount
+```
+
+### Question3
+```{r}
+# create new variable(s)
+tuango <- mutate(tuango, rec_iq = xtile(recency, 5))
+## create new variable(s)
+tuango <- mutate(tuango, freq_iq = xtile(frequency, 5, rev = TRUE))
+## create new variable(s)
+tuango <- mutate(tuango, mon_iq = xtile(monetary, 5, rev = TRUE))
+
+```
+
+### Question4 
+```{r}
+visualize(
+  tuango,
+  xvar = c("rec_iq", "freq_iq", "mon_iq"),
+  yvar = "buyer",
+  type = "bar",
+  custom = FALSE
+)
+```
+
+### Question5
+```{r}
+visualize(
+  tuango,
+  xvar = c("rec_iq", "freq_iq", "mon_iq"),
+  yvar = "ordersize",
+  type = "bar",
+  data_filter = "buyer == 'yes'",
+  custom = FALSE
+)
+```
+
+### Question6
+The above bar plot reveals that the likelihood of response is positively related to RFM.The more recency, frequently and monetary value, the higher likelihood of response.
+For the size of the order across all recency, frequency and monetary quantiles, the trend of the graph is moderate that it’s almost a horizontal line among different quantiles.
+
+
+### Question7
+
+```{r}
+## create new variable(s)
+tuango <- mutate(tuango, rfm_iq = paste0(rec_iq, freq_iq, mon_iq))
+
+## create new variable(s)
+tuango <- group_by(tuango, rec_iq) %>%
+  mutate(freq_sq = xtile( frequency, 5, rev = TRUE)) %>%
+  ungroup()
+## create new variable(s)
+tuango <- group_by(tuango, rec_iq, freq_sq) %>%
+  mutate(mon_sq = xtile(monetary, 5, rev= TRUE)) %>%
+  ungroup()
+## create new variable(s)
+tuango <- mutate(tuango, rfm_sq = paste0(rec_iq, freq_sq, mon_sq))
+
+
+margin <- amount*0.5
+cost <- 2.5
+breakeven <- cost/margin
+breakeven
+```
+
+### Question8
+```{r}
+n <- 250902
+response <- n * percentage
+profit <- margin*response - cost*n
+ROME <- profit/(cost*n)
+```
+
+### Question9
+```{r}
+tuango_iq <- tuango %>%
+  group_by(rfm_iq) %>%
+  summarize(resp_rate = mean(buyer == "yes"))%>%
+  left_join(tuango) %>%
+  filter(resp_rate > 0.02473671) %>%
+  summarise(perc = n()/nrow(tuango), resp = mean(resp_rate),
+            profit = perc*amount*resp*n*0.5 - cost*n*perc, ROME = profit/(cost*n*perc))
+
+profit_iq <-tuango_iq$profit
+ROME_iq<-tuango_iq$ROME
+
+tuango_sq <- tuango %>%
+  group_by(rfm_sq) %>%
+  summarise(resp_rate = mean(buyer == "yes")) %>%
+  left_join(tuango) %>%
+  filter(resp_rate > 0.02473671) %>%
+  summarise(perc = n()/nrow(tuango), resp = mean(buyer == 'yes'),
+            profit = perc*amount*resp*n*0.5 - cost*n*perc, ROME = profit/(cost*n*perc))
+profit_sq <-tuango_sq$profit
+ROME_sq<-tuango_sq$ROME
+print(profit_sq)
+print(ROME_sq)
+```
+
+### Question 10
+```{r}
+tuango %>% filter(rfm_iq != rfm_sq)
+```
+The two approaches generally doesn't yield the same RFM index for any given customer.Independent quantiles create 5 independent groups and each of them is analyzed independently.Sequential quantiles need to create 125 groups.I think sequential quantiles is a superior method. since for each recency quantile, we create frequency quantiles which is then divided into smaller monetary quantiles.This method is more accuate to predict the performance.
+
+### Quesstion 11
+```{r}
+cell <- tuango %>%
+  group_by(rfm_sq) %>%
+  summarize(resp_rate = mean(buyer == "yes"), order = sum(ordersize)/sum(buyer == 'yes'),
+            break_even = cost/(order*0.5)) %>%
+  left_join(tuango) %>%
+  filter(resp_rate > break_even) %>%
+  summarise(perc = n()/nrow(tuango), resp = mean(buyer == 'yes'),
+            profit = perc*amount*resp*n*0.5 - cost*n*perc, ROME = profit/(cost*n*perc))
+profit_sq_cell <- cell$profit
+ROME_sq_cell<-cell$ROME
+print(profit_sq_cell)
+print(profit_sq_cell)
+```
+### Question 12
+```{r}
+tuango1 <- group_by(tuango, rfm_iq) %>%
+  mutate(mailto_lbiq = (mean(buyer == "yes") - 1.64 * seprop(buyer == "yes")) > breakeven) %>%
+  ungroup()
+perc_mail <- mean(tuango1$mailto_lbiq)
+nr_mail <- n * perc_mail
+dat <- filter(tuango1, mailto_lbiq == TRUE)
+rep_rate <- mean(dat$buyer == "yes")
+nr_resp <- nr_mail * rep_rate
+mail_cost_lbiq <- cost * nr_mail
+profit_lbiq <- 0.5 * amount * nr_resp - mail_cost_lbiq
+ROME_lbiq <- profit_lbiq / mail_cost_lbiq
+print(profit_lbiq)
+print(ROME_lbiq)
+
+tuango2 <- group_by(tuango, rfm_sq) %>%
+  mutate(mailto_lbsq = (mean(buyer == "yes") - 1.64 * seprop(buyer == "yes")) > breakeven) %>%
+  ungroup()
+perc_mail <- mean(tuango2$mailto_lbsq)
+nr_mail <- n * perc_mail
+dat <- filter(tuango2, mailto_lbsq == TRUE)
+rep_rate <- mean(dat$buyer == "yes")
+nr_resp <- nr_mail * rep_rate
+mail_cost_lbsq <- cost * nr_mail
+profit_lbsq <- 0.5 * amount * nr_resp - mail_cost_lbsq
+ROME_lbsq <- profit_lbsq / mail_cost_lbsq
+print(profit_lbsq)
+print(ROME_lbsq)
+```
+
+### Question 13
+```{r}
+results <- tibble::tibble(
+  name = c("Indep. RFM", "Sequen. RFM", "Cell Sequen. RFM", "Indep. lb RFM", "Seq. lb RFM"),
+  Profit = c(profit_iq, profit_sq, profit_sq_cell, profit_lbiq, profit_lbsq),
+  ROME = c(ROME_iq, ROME_sq, ROME_sq_cell, ROME_lbiq, ROME_lbsq)
+) %>%
+  mutate(name = factor(name, levels = name))
+results$Profit <- as.numeric(results$Profit)
+results$ROME <- as.numeric(results$ROME)
+
+results %>%
+  ggplot(aes(x = name, y = Profit)) + geom_bar(stat = "identity") + geom_text(aes(label = round(Profit, 2)), size = 3)
+
+results %>%
+  ggplot(aes(x = name, y = ROME)) + geom_bar(stat = "identity") + geom_text(aes(label = round(ROME, 2)), size = 3)
+```
+
