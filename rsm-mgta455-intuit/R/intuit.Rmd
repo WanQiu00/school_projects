@@ -1,0 +1,115 @@
+---
+title: Intuit Quickbooks Upgrade
+output: html_document
+---
+
+* Team-lead GitLab id:
+* Group number:
+* Group name:
+* Team member names:
+
+```{r r_setup}
+## initial settings
+knitr::opts_chunk$set(
+  comment = NA,
+  echo = TRUE,
+  error = TRUE,
+  cache = FALSE,
+  message = FALSE,
+  dpi = 144,
+  warning = FALSE
+)
+
+## width to use when printing tables etc.
+options(
+  width = 250,
+  scipen = 100,
+  max.print = 5000,
+  stringsAsFactors = FALSE
+)
+
+## load radiant packages if needed
+if (!exists("r_environment")) library(radiant)
+```
+
+<style>
+.btn, .form-control, pre, code, pre code {
+  border-radius: 4px;
+}
+.table {
+  width: auto;
+}
+ul, ol {
+  padding-left: 18px;
+}
+code, pre, pre code {
+  overflow: auto;
+  white-space: pre;
+  word-wrap: normal;
+}
+code {
+  color: #c7254e;
+  background-color: #f9f2f4;
+}
+pre {
+  background-color: #ffffff;
+}
+</style>
+
+## Setup
+
+Please complete this Rmarkdown document with your group by answering the questions in `intuit.pdf` on Canvas (week6/). Create an HTML file with all your results and comments and push both the Rmarkdown and HTML file to GitLab when your team is done. All results MUST be reproducible (i.e., the TA and I must be able to recreate the HTML from the Rmarkdown file without changes or errors). This means that you should NOT use any R-packages that are not part of the rsm-msba-spark docker container.
+
+This is the first group assignment for MGTA 455 and you will be using git and GitLab. If two people edit the same file at the same time you could get what is called a "merge conflict". git will not decide for you who's change to accept so the team-lead will have to determine which edits to use. To avoid merge conflicts, **always** click "pull" in Rstudio before you start working on any files. Then, when you are done, save and commit your changes, and then push them to GitLab. Make "pull-first" a habit!
+
+If multiple people are going to work on the assignment at the same time I recommend you work on different files. You can use `source` to include R-code in your Rmarkdown document or include other R(markdown) documents into the main assignment file. 
+
+Group work-flow tips as discussed during ICT in Summer II are shown below:
+
+* Pull, edit, save, stage, commit, and push
+* Schedule who does what and when
+* Try to avoid working simultaneously on the same file 
+* If you are going to work simultaneously, do it in different files, e.g., 
+    - assignment1_john.R, assignment1_susan.R, assignment1_wei.R 
+    - assignment_1a.R, assignment_1b.R, assignment_1c.R
+* Use the `source` command to bring different pieces of code together into an Rmarkdown document or into an R-code file
+* Alternatively, use _child_ in Rmarkdown to include a part of a report
+* For (very) big projects use 'branches' to avoid conflicts (and stay on your branch)
+
+A graphical depiction of the group work-flow is shown below:
+
+![](../images/git-group-workflow.png)
+
+Tutorial videos about using Git, GitLab, and GitGadget for group assignments:
+
+* Setup the MSBA server to use Git and GitLab: https://youtu.be/oUrI7G3NHDg
+* Dealing with Merge Conflicts: https://youtu.be/elq5UUG0RbE
+* Group assignment practice: https://youtu.be/uwqUHl3z37o
+
+Additional resources on git are linked below:
+
+* http://happygitwithr.com
+* http://r-pkgs.had.co.nz/git.html
+* http://stackoverflow.com/questions/tagged/git or just a google search
+* https://try.github.io
+* https://www.manning.com/books/git-in-practice
+* https://github.com/GitInPractice/GitInPractice#readme
+
+
+```{r eval=FALSE, include=FALSE}
+## loading the data (do NOT change the data)
+intuit75k <- readr::read_rds("../data/intuit75k.rds")
+```
+
+Below an example of how you could include another Rmd file inside your main assignment Rmarkdown document. Note:  don't add a YAML header to the _child_ file! 
+
+```{r, child = "question-1.Rmd"}
+```
+
+Alternatively you can source code from an .R file as follows:
+
+```{r}
+source("question-1.R", local = TRUE)
+```
+
+## Question answers
